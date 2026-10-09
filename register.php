@@ -1,106 +1,152 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/config/database.php';
+require_once "config/database.php";
 
-$error = '';
+$message = "";
+$message_type = "";
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $fullName = trim($_POST['full_name'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $name = trim($_POST['name']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
 
-    if (!empty($fullName) && !empty($email) && !empty($password)) {
-        $stmt = $conn->prepare("INSERT INTO users (full_name, email, password) VALUES (?, ?, ?)");
-        if ($stmt) {
-            $stmt->bind_param("sss", $fullName, $email, $password);
-            $stmt->execute();
-            
-            $_SESSION['user_name'] = $fullName;
-            $_SESSION['user_email'] = $email;
-            $_SESSION['role'] = 'user';
+    if (!empty($name) && !empty($email) && !empty($password)) {
+        // Hash the password for security
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-            header("Location: dashboard.php");
-            exit;
+        // Check if email already exists in the database
+        $check_sql = "SELECT id FROM users WHERE email = ?";
+        $stmt = $conn->prepare($check_sql);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $stmt->store_result();
+
+        if ($stmt->num_rows > 0) {
+            $message = "This email is already registered. Please use a different email.";
+            $message_type = "error";
+        } else {
+            // Insert new user into users table
+            $insert_sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')";
+            $insert_stmt = $conn->prepare($insert_sql);
+            $insert_stmt->bind_param("sss", $name, $email, $hashed_password);
+
+            if ($insert_stmt->execute()) {
+                $message = "Registration successful! You can now log in.";
+                $message_type = "success";
+            } else {
+                $message = "Registration failed. Please try again.";
+                $message_type = "error";
+            }
+            $insert_stmt->close();
         }
+        $stmt->close();
     } else {
-        $error = "Please fill in all required fields.";
+        $message = "Please fill in all required fields.";
+        $message_type = "error";
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account - Disaster Emergency System</title>
+    <title>User Registration - Disaster Portal</title>
+    <link rel="stylesheet" href="css/style.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #0b1120; color: #f8fafc; display: flex; flex-direction: column; min-height: 100vh; }
-        
-        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; background: #0f172a; border-bottom: 1px solid #1e293b; }
-        .brand { font-size: 20px; font-weight: bold; color: #ffffff; text-decoration: none; }
-        .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; margin-left: 16px; font-weight: 500; }
-        .nav-links a:hover { color: #38bdf8; }
-
-        .main-content { flex: 1; display: flex; justify-content: center; align-items: center; padding: 40px 20px; }
-        .reg-box { background: #1e293b; border: 1px solid #334155; width: 100%; max-width: 420px; padding: 32px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        .reg-box h2 { color: #ffffff; text-align: center; font-size: 24px; margin-bottom: 6px; }
-        .reg-box p { color: #94a3b8; text-align: center; font-size: 13px; margin-bottom: 24px; }
-        .form-group { margin-bottom: 18px; }
-        .form-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; font-weight: 600; }
-        .form-group input { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #ffffff; font-size: 14px; outline: none; }
-        .form-group input:focus { border-color: #22c55e; }
-        .btn-submit { width: 100%; padding: 12px; background: #16a34a; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
-        .btn-submit:hover { background: #15803d; }
-        .error-badge { background: #7f1d1d; color: #fca5a5; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 18px; text-align: center; }
-        .links { text-align: center; margin-top: 20px; font-size: 13px; color: #94a3b8; }
-        .links a { color: #38bdf8; text-decoration: none; font-weight: 600; }
+        .register-container {
+            max-width: 400px;
+            margin: 60px auto;
+            padding: 30px;
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-family: Arial, sans-serif;
+        }
+        .register-container h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 11px;
+            background-color: #d9534f;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-submit:hover {
+            background-color: #c9302c;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .alert.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 <body>
 
-    <nav class="navbar">
-        <a href="index.php" class="brand">🚨 Disaster Portal</a>
-        <div class="nav-links">
-            <a href="index.php">Home</a>
-            <a href="disasters.php">Disasters</a>
-            <a href="shelters.php">Shelter Homes</a>
-            <a href="volunteers.php">Volunteers</a>
-            <a href="login.php" style="color: #0284c7;">Sign In</a>
-        </div>
-    </nav>
-
-    <div class="main-content">
-        <div class="reg-box">
-            <h2>Create Account</h2>
-            <p>Join the Emergency Response Portal</p>
-
-            <?php if ($error): ?>
-                <div class="error-badge"><?php echo htmlspecialchars($error); ?></div>
-            <?php endif; ?>
-
-            <form method="POST" action="register.php">
-                <div class="form-group">
-                    <label>Full Name</label>
-                    <input type="text" name="full_name" placeholder="John Doe" required>
-                </div>
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" name="email" placeholder="user@example.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" name="password" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="btn-submit">Register Account</button>
-            </form>
-
-            <div class="links">
-                Already registered? <a href="login.php">Sign In Here</a> | <a href="volunteers.php">Become a Volunteer</a>
+    <div class="register-container">
+        <h2>User Registration</h2>
+        
+        <?php if (!empty($message)): ?>
+            <div class="alert <?php echo $message_type; ?>">
+                <?php echo $message; ?>
             </div>
-        </div>
+        <?php endif; ?>
+
+        <form action="register.php" method="POST">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required placeholder="Enter your name">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="Enter your email">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter password">
+            </div>
+
+            <button type="submit" class="btn-submit">Register</button>
+        </form>
     </div>
 
 </body>
